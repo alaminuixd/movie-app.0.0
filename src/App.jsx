@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import Search from "./components/Search";
 import Spinner from "./components/Spinner";
 import MovieCard from "./components/MovieCard";
+import { useDebounce } from "react-use";
+import { updateSearchCount } from "./appwrite";
 
 // API URL
 const API_BASED_URL = "https://api.themoviedb.org/3/";
@@ -16,16 +18,21 @@ const API_OPTIONS = {
 };
 
 function App() {
+  // useState Hooks
   const [searchTerm, setSearchTerm] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [movies, setMovies] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-
-  const fetchMovie = async () => {
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  useDebounce(() => setDebouncedSearchTerm(searchTerm), 1000, [searchTerm]);
+  // initial functon to fetch movie in useEffect
+  const fetchMovie = async (query = "") => {
     setIsLoading(true);
     setErrorMessage("");
     try {
-      const endPoint = `${API_BASED_URL}/discover/movie?sort_by=popularity.desc`;
+      const endPoint = query
+        ? `${API_BASED_URL}/search/movie?query=${encodeURIComponent(query)}`
+        : `${API_BASED_URL}/discover/movie?sort_by=popularity.desc`;
       const response = await fetch(endPoint, API_OPTIONS);
       if (!response.ok) {
         throw new Error("Failed fetching movies");
@@ -37,8 +44,13 @@ function App() {
         return;
       }
       setIsLoading(false);
-      console.log(data); // Logs the data you receive from the API
+      // console.log(data); // Logs the data you receive from the API
       setMovies(data.results || []); // Store the movie results in state
+
+      if (query && data.results.length > 0) {
+        console.log(data.results);
+        await updateSearchCount(query, data.results[0]);
+      }
     } catch (error) {
       setErrorMessage(`Error fetching movies: ${error.message}`);
     } finally {
@@ -47,10 +59,9 @@ function App() {
   };
 
   useEffect(() => {
-    fetchMovie(); // Call fetchMovie when the component mounts
-    // console.log(import.meta.env);
-  }, []); // Empty dependency array means this will only run once when the component mounts
-
+    // console.log(debouncedSearchTerm);
+    fetchMovie(debouncedSearchTerm); // Call fetchMovie when the component mounts
+  }, [debouncedSearchTerm]); //this will only run once when the search value changes
   return (
     <main>
       <div className="pattern" />
